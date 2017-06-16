@@ -4,24 +4,50 @@ import sys, os
 import BaseHTTPServer
 
 
+class ServerException(Exception):
+
+	pass
+
+class case_directory_index_file(object):
+
+	def index_path(self, handler):
+		return os.path.join(handler.full_path, 'index.html')
+
+	def test(self, handler):
+		return os.path.isdir(handler.full_path) and os.path.isfile(self.index_path(handler))
+
+	def act(self, handler):
+		handler.handle_file(self.index_path(handler))	
+
+class case_no_file(object):
+	''' path not exists'''
+	def test(self, handler):
+		return not os.path.exists(handler.full_path)
+
+	def act(self, handler):
+		raise ServerException("'{0} not found".format(handler.path))
+
+class case_existing_file(object):
+	''' path is a file '''
+	def test(self, handler):
+		return os.path.isfile(handler.full_path)
+
+	def act(self, handler):
+		handler.handle_file(full_path)
+
+class case_always_fail(object):
+	''' default'''
+	def test(self, handler):
+		 return True
+
+	def act(self, handler):
+		raise ServerException("Unknow object '{0}'".format(handler.path))
+
+
+
 
 class RequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
 
-
-	Page = '''\
-			<html>
-			<body>
-			<table>
-			<tr>  <td>Header</td>         <td>Value</td>          </tr>
-			<tr>  <td>Date and time</td>  <td>{date_time}</td>    </tr>
-			<tr>  <td>Client host</td>    <td>{client_host}</td>  </tr>
-			<tr>  <td>Client port</td>    <td>{client_port}</td> </tr>
-			<tr>  <td>Command</td>        <td>{command}</td>      </tr>
-			<tr>  <td>Path</td>           <td>{path}</td>         </tr>
-			</table>
-			</body>
-			</html>
-			'''
 
 	Error_Page = """\
 			    <html>
@@ -31,23 +57,16 @@ class RequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
 			    </body>
 			    </html>
 			    """
-
-
+	Cases = [case_no_file(), case_existing_file(), case_directory_index_file(), case_always_fail()]
 	def do_GET(self):
 		try:
-			full_path = os.getcwd() + self.path
+			self.full_path = os.getcwd() + self.path
 
-			#file does not exist
-			if not os.path.exists(full_path):
-				raise ServerException("'{0} not found".format(self.path))
+			for case in self.Cases:
+				if case.test(self):
+					case.act(self)
+					break
 
-			#file exists
-			elif os.path.isfile(full_path):
-				self.handle_file(full_path) 
-
-			else:
-				raise ServerException("Unknow object '{0}'".format(self.path))
-		
 		except Exception as msg:
 			self.handle_error(msg)
 
@@ -71,9 +90,9 @@ class RequestHandler(BaseHTTPServer.BaseHTTPRequestHandler):
 		self.end_headers()
 		self.wfile.write(content)
 
-class ServerException(Exception):
 
-	pass
+
+
 
 
 
